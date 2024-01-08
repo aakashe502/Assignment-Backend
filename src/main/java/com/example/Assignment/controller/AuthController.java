@@ -44,6 +44,7 @@ public class AuthController {
         JwtResponse response = JwtResponse.builder()
                 .jwtToken(token)
                 .username(userDetails.getUsername()).build();
+        System.out.println("Abhi aaya hu auth controller pe");
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
