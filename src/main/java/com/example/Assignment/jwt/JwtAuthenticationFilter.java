@@ -6,10 +6,10 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -33,12 +33,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal( HttpServletRequest request,  HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-
-//        try {
-//            Thread.sleep(500);
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
         //Authorization
 
         String requestHeader = request.getHeader("Authorization");
@@ -50,23 +44,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             //looking good
             token = requestHeader.substring(7);
             logger.info("token is:{} ",token);
-            logger.info("username is token is upar: {}",this.jwtHelper.getUsernameFromToken((token)));
+
+           // logger.info("username is token is upar: {}",this.jwtHelper.getUsernameFromToken((token)));
             try {
+//                if(SecurityContextHolder.getContext().getAuthentication()==null){
+//
+//                    allowForRefreshToken(request);
+//                    logger.info("Ha Hua Refresh ,{}",SecurityContextHolder.getContext().getAuthentication());
+//                }
+//                else{
+                    username = this.jwtHelper.getUsernameFromToken(token);
+                    UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+                    UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken=new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities());
+                    SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+                    logger.info("User name is {}",username);
 
-                username = this.jwtHelper.getUsernameFromToken(token);
+                //}
 
-            } catch (IllegalArgumentException e) {
-                System.out.println("Illegal Argument while fetching the username !!");
 
-            } catch (ExpiredJwtException e) {
+            }
+            catch (ExpiredJwtException e) {
+                if(requestHeader.contains("refreshtoken")){
+                    allowForRefreshToken(request);
+                }
                 System.out.println("Given jwt token is expired !!");
+                request.setAttribute("expired",e.getMessage());
 
-            } catch (MalformedJwtException e) {
-                System.out.println("Some changed has done in token !! Invalid Token");
-               // e.printStackTrace();
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 //e.printStackTrace();
                 logger.info("Not Generatig Token :{} ",token);
+
 
             }
 
@@ -76,7 +84,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
 
-        //
+
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
 
@@ -92,17 +100,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 
             } else {
+
                 System.out.println("Validation fails !!");
             }
-
+            System.out.println("filter par hain");
 
         }
         else{
+            //Here I can code for refresh tokken
             logger.info("Here it is failing{}",token);
         }
 
         filterChain.doFilter(request, response);
 
 
+    }
+
+    private void allowForRefreshToken( HttpServletRequest request) {
+        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken=new UsernamePasswordAuthenticationToken(null,null,null);
+        SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+        logger.info("Haa refresh ho rha h{}");
+//        request.setAttribute("claims",e.getClaims());
     }
 }

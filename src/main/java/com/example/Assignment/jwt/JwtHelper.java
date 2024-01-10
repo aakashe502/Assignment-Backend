@@ -13,7 +13,8 @@ import java.util.function.Function;
 
 @Component
 public class JwtHelper {
-    public static final long JWT_TOKEN_VALIDITY = 11 * 60 * 60;
+    public static final long JWT_TOKEN_VALIDITY =  5*60*60;
+    private static final long REFRESH_TOKEN = 5*60*60;
 
     //    public static final long JWT_TOKEN_VALIDITY =  60;
     private String secret = "afafasfafafasfasfasfafacasdasfasxASFACASDFACASDFASFASFDAFASFASDAADSCSDFADCVSGCFVADXCcadwavfsfarvf";
@@ -41,13 +42,27 @@ public class JwtHelper {
     //check if the token has expired
     private Boolean isTokenExpired(String token) {
         final Date expiration = getExpirationDateFromToken(token);
-        return false;
+//        if(!expiration.before(new Date())){
+//
+//        }
+        return expiration.before(new Date());
     }
 
     //generate token for user
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         return doGenerateToken(claims, userDetails.getUsername());
+    }
+
+
+
+    private Claims extractClaims(String token) {
+        return Jwts.parser().setSigningKey(secret).parseClaimsJws(token).getBody();
+    }
+
+    // Helper method to generate expiration date based on the configured expiration time
+    private Date generateExpirationDate() {
+        return new Date(System.currentTimeMillis() + JWT_TOKEN_VALIDITY * 1000);
     }
 
     //while creating the token -
@@ -61,7 +76,15 @@ public class JwtHelper {
                 .setExpiration(new Date(System.currentTimeMillis() + JWT_TOKEN_VALIDITY * 1000))
                 .signWith(SignatureAlgorithm.HS512,secret).compact();
     }
-
+    public String refreshToken(Map<String,Object> claims,String subject) {
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(subject)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis()+REFRESH_TOKEN*1000))
+                .signWith(SignatureAlgorithm.HS512, secret)
+                .compact();
+    }
     //validate token
     public Boolean validateToken(String token, UserDetails userDetails) {
         final String username = getUsernameFromToken(token);

@@ -3,6 +3,8 @@ package com.example.Assignment.controller;
 import com.example.Assignment.jwt.JwtHelper;
 import com.example.Assignment.models.JwtRequest;
 import com.example.Assignment.models.JwtResponse;
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,9 +13,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
@@ -33,18 +41,40 @@ public class AuthController {
 
 
     @PostMapping("/login")
-    public ResponseEntity<JwtResponse> login(@RequestBody JwtRequest request) {
+    public JwtResponse login(@RequestBody JwtRequest request) {
+        UsernamePasswordAuthenticationToken passwordAuthenticationToken=new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword());
+        Authentication authentication = manager.authenticate(passwordAuthenticationToken);
+        if(authentication.isAuthenticated()){
+            this.doAuthenticate(request.getEmail(), request.getPassword());
+            UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
+            String token = this.helper.generateToken(userDetails);
+            JwtResponse response = JwtResponse.builder()
+                    .jwtToken(token)
+                    .username(userDetails.getUsername()).build();
+            SecurityContextHolder.getContext().setAuthentication(passwordAuthenticationToken);
+            System.out.println("Abhi aaya hu auth controller pe");
+            return response;
+        }
+        else{
+            throw new UsernameNotFoundException("invalid user request !");
+        }
+    }
 
-        this.doAuthenticate(request.getEmail(), request.getPassword());
+    @GetMapping("/refreshtoken")
+    public ResponseEntity<JwtResponse> refreshtoken(@RequestBody HttpServletRequest jwtRequest){
+        Claims claims= (Claims) jwtRequest.getAttribute("claims");
+        Map<String,Object> map=getMap(claims);
+        String token=this.helper.refreshToken(map,map.get("sub").toString());
+        logger.info("Inside Auth Controller Did Something");
+        return ResponseEntity.ok(new JwtResponse(token,"Something"));
+    }
 
-
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
-        String token = this.helper.generateToken(userDetails);
-
-        JwtResponse response = JwtResponse.builder()
-                .jwtToken(token)
-                .username(userDetails.getUsername()).build();
-        return new ResponseEntity<>(response, HttpStatus.OK);
+    private Map<String, Object> getMap(Claims claims) {
+        Map<String, Object> expectedMap = new HashMap<String, Object>();
+        for (Map.Entry<String, Object> entry : claims.entrySet()) {
+            expectedMap.put(entry.getKey(), entry.getValue());
+        }
+        return expectedMap;
     }
 
     private void doAuthenticate(String email, String password) {
